@@ -1,19 +1,70 @@
 version: '3.8'
+
 services:
   influxdb:
     image: influxdb:1.8
     container_name: influxdb
+    restart: always
     ports:
       - "8086:8086"
+    volumes:
+      - ./influxdb_data:/var/lib/influxdb
+    networks:
+      - edge_net
 
   grafana:
     image: grafana/grafana
     container_name: grafana
+    restart: always
     ports:
-      - "3000:3000"
+      - "3001:3000"
+    depends_on:
+      - influxdb
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    networks:
+      - edge_net
 
   mqtt:
     image: eclipse-mosquitto
     container_name: mqtt
+    restart: always
     ports:
       - "1883:1883"
+    volumes:
+      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf
+    networks:
+      - edge_net
+
+  telegraf:
+    image: telegraf:1.26
+    container_name: telegraf
+    depends_on:
+      - mqtt
+      - influxdb
+    volumes:
+      - ./telegraf/telegraf.conf:/etc/telegraf/telegraf.conf:ro
+    networks:
+      - edge_net
+
+  simulator:
+    build: ./simulator
+    container_name: simulator
+    depends_on:
+      - mqtt
+    networks:
+      - edge_net
+
+  gateway:
+    build: ./gateway
+    container_name: gateway
+    depends_on:
+      - mqtt
+      - influxdb
+    networks:
+      - edge_net
+
+networks:
+  edge_net:
+    driver: bridge
